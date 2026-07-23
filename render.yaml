@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: right-to-travel
+    runtime: node
+    plan: free
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PAYPAL_EMAIL
+        value: joemulik@gmail.com
+      - key: BASE_URL
+        sync: false
