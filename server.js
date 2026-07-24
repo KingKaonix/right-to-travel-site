@@ -56,6 +56,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Blog / static pages ──
+app.get('/blog/*', (req, res) => {
+  const page = req.params[0] || 'index.html';
+  const filePath = path.join(__dirname, 'public', 'blog', page);
+  if (fs.existsSync(filePath)) return res.sendFile(filePath);
+  res.status(404).send('Blog post not found');
+});
+
 // ── Landing page ──
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
