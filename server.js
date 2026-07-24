@@ -204,17 +204,6 @@ app.post('/api/create-payment', (req, res) => {
   res.json({ url: paypalUrl });
 });
 
-// ── Free test download (bypasses PayPal — remove in production) ──
-app.get('/test-download', (req, res) => {
-  const downloadToken = crypto.randomBytes(32).toString('hex');
-  paymentTokens.set(`dl_${downloadToken}`, {
-    downloads: { vol1: true, vol2: true },
-    created: Date.now(),
-    ttl: 60 * 60 * 1000
-  });
-  res.redirect(`/download/${downloadToken}`);
-});
-
 // ── Health check ──
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
