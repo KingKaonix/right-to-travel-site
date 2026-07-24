@@ -248,6 +248,19 @@ app.post('/api/create-payment', (req, res) => {
   res.json({ url: paypalUrl });
 });
 
+// ── Email subscribe ──
+app.post('/api/subscribe', (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) return res.json({ ok: false, error: 'Invalid email' });
+
+  sendTelegram(`📧 <b>New subscriber</b>\nEmail: ${email}\nTime: ${new Date().toLocaleString()}`);
+
+  // In a real setup you'd store this in a DB or Mailchimp
+  // For now it just notifies you on Telegram
+  console.log(`New subscriber: ${email}`);
+  res.json({ ok: true });
+});
+
 // ── Health check ──
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
