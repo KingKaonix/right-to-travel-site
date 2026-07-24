@@ -2,17 +2,34 @@ const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const PAYPAL_EMAIL = process.env.PAYPAL_EMAIL || 'joemulik@gmail.com';
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
-// PayPal payment tokens (in-memory, fine for single-server)
-// Format: { token: { product, email, created } }
+// ── Telegram notification setup ──
+// Bot token and chat ID are set via env vars (created via Telegram's BotFather)
+const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN || '';
+const TG_CHAT_ID = process.env.TG_CHAT_ID || '';
+
+function sendTelegram(msg) {
+  if (!TG_BOT_TOKEN || !TG_CHAT_ID) return;
+  const text = encodeURIComponent(msg);
+  const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${TG_CHAT_ID}&text=${text}&parse_mode=HTML`;
+  https.get(url, (res) => {
+    let data = '';
+    res.on('data', c => data += c);
+    res.on('end', () => {
+      if (res.statusCode !== 200) console.error('Telegram send failed:', data);
+    });
+  }).on('error', e => console.error('Telegram error:', e.message));
+}
+
+// ── Payment tokens ──
 const paymentTokens = new Map();
 
-// Clean expired tokens every 10 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [token, data] of paymentTokens) {
@@ -24,8 +41,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve PDFs only through download tokens
-// (not publicly accessible)
+// ── Visitor tracking middleware ──
+app.use((req, res, next) => {
+  // Only track page views (not API calls, static files)
+  if (req.path === '/' || req.path.startsWith('/dl/')) {
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    const ua = (req.headers['user-agent'] || '').substring(0, 80);
+    let visitorMsg = '';
+    if (req.path === '/') {
+      visitorMsg = `👁️ <b>Visitor</b>\nSite: Right-to-Travel\nIP: ${ip}\nUA: ${ua}`;
+    }
+    if (visitorMsg) sendTelegram(visitorMsg);
+  }
+  next();
+});
 
 // ── Landing page ──
 app.get('/', (req, res) => {
@@ -33,9 +62,8 @@ app.get('/', (req, res) => {
 });
 
 // ── PayPal redirect after payment ──
-// PayPal sends user here with PayerID and token
 app.get('/success', (req, res) => {
-  const { token, payerID } = req.query;
+  const { token } = req.query;
 
   if (!token) {
     return res.status(400).send(`
@@ -56,7 +84,21 @@ app.get('/success', (req, res) => {
     `);
   }
 
-  // Generate download token
+  const productNames = {
+    bundle: 'Complete Bundle (Vol I + II)',
+    vol1: 'Vol I — Constitutional Case',
+    vol2: 'Vol II — Legal Challenge'
+  };
+  const productPrices = { bundle: '$14.99', vol1: '$9.99', vol2: '$9.99' };
+
+  sendTelegram(
+    `💰 <b>NEW SALE!</b>\n` +
+    `Product: ${productNames[payment.product] || payment.product}\n` +
+    `Amount: ${productPrices[payment.product] || '???'}\n` +
+    `Time: ${new Date().toLocaleString()}\n` +
+    `URL: ${BASE_URL}/success?token=${token}`
+  );
+
   const downloadToken = crypto.randomBytes(32).toString('hex');
   const downloads = payment.product === 'bundle'
     ? { vol1: true, vol2: true }
@@ -64,14 +106,12 @@ app.get('/success', (req, res) => {
       ? { vol2: true }
       : { vol1: true };
 
-  // Store download info (valid for 1 hour)
   paymentTokens.set(`dl_${downloadToken}`, {
     downloads,
     created: Date.now(),
     ttl: 60 * 60 * 1000
   });
 
-  // Clean up payment token
   paymentTokens.delete(token);
 
   res.redirect(`/download/${downloadToken}`);
@@ -89,6 +129,8 @@ app.get('/download/:token', (req, res) => {
       </body></html>
     `);
   }
+
+  sendTelegram(`⬇️ <b>Download started</b>\nTime: ${new Date().toLocaleString()}`);
 
   const dlToken = req.params.token;
   const links = [];
@@ -152,6 +194,7 @@ app.get('/dl/:token/:vol', (req, res) => {
 
 // ── Cancel page ──
 app.get('/cancel', (req, res) => {
+  sendTelegram(`❌ <b>Payment cancelled</b>\nTime: ${new Date().toLocaleString()}`);
   res.send(`
     <!DOCTYPE html>
     <html><head>
@@ -170,9 +213,8 @@ app.get('/cancel', (req, res) => {
 });
 
 // ── Create PayPal payment ──
-// Called via AJAX from the landing page buttons
 app.post('/api/create-payment', (req, res) => {
-  const { product } = req.body; // 'bundle', 'vol1', 'vol2'
+  const { product } = req.body;
 
   const prices = { bundle: '14.99', vol1: '9.99', vol2: '9.99' };
   const names = {
@@ -183,11 +225,13 @@ app.post('/api/create-payment', (req, res) => {
 
   if (!prices[product]) return res.status(400).json({ error: 'Invalid product' });
 
-  // Generate a unique token for this payment
   const token = crypto.randomBytes(16).toString('hex');
   paymentTokens.set(token, { product, created: Date.now() });
 
-  // Build PayPal checkout URL
+  sendTelegram(
+    `🛒 <b>Checkout started</b>\nProduct: ${names[product]}\nPrice: $${prices[product]}\nTime: ${new Date().toLocaleString()}`
+  );
+
   const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?` +
     `cmd=_xclick` +
     `&business=${encodeURIComponent(PAYPAL_EMAIL)}` +
@@ -211,4 +255,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`PayPal: ${PAYPAL_EMAIL}`);
   console.log(`Base URL: ${BASE_URL}`);
+  console.log(`Telegram alerts: ${TG_BOT_TOKEN ? 'enabled' : 'DISABLED — set TG_BOT_TOKEN and TG_CHAT_ID'}`);
 });
