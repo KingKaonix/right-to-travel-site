@@ -187,10 +187,36 @@ footer{background:var(--navy);color:#556;text-align:center;padding:30px 20px;fon
   <a href="#buy" class="hero-cta" style="font-size:.9rem;padding:14px 36px;">Get the Guides — $14.99 ↓</a>
 </div>
 
+<!-- SHARE SECTION -->
+<div style="background:var(--white);padding:40px 20px;text-align:center;">
+  <div style="max-width:450px;margin:0 auto;">
+    <div style="font-size:1.8rem;margin-bottom:8px;">📢</div>
+    <h3 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2rem;color:var(--navy);margin-bottom:6px;">Know Someone Who Needs This?</h3>
+    <p style="font-size:.85rem;color:var(--gray);margin-bottom:20px;">Every American should know what the courts have actually said about their right to travel.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button onclick="shareLink()" style="padding:12px 24px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">📤 Share Link</button>
+      <a href="https://www.facebook.com/sharer.php?u=https://right-to-travel.onrender.com" target="_blank" style="padding:12px 24px;background:#1877F2;color:#fff;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:6px;">f Share</a>
+      <a href="https://twitter.com/intent/tweet?text=The+government+says+you+need+permission+to+drive.+The+Constitution+says+otherwise.+https://right-to-travel.onrender.com" target="_blank" style="padding:12px 24px;background:#000;color:#fff;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:6px;">𝕏 Share</a>
+    </div>
+  </div>
+</div>
+
 <footer>
   <p>© 2026 All Rights Reserved</p>
   <p style="margin-top:6px;"><strong>Disclaimer:</strong> Educational purposes only. Not legal advice. Driving without a license is a criminal offense in all 50 states. Consult a licensed attorney.</p>
 </footer>
+
+<script>
+async function shareLink() {
+  const url = 'https://right-to-travel.onrender.com';
+  const text = document.title || 'Know Your Rights — The Right to Travel Legal Guide';
+  if (navigator.share) {
+    try { await navigator.share({ title: text, url }); } catch {}
+  } else {
+    try { await navigator.clipboard.writeText(url); alert('Link copied to clipboard!'); } catch { prompt('Copy this link:', url); }
+  }
+}
+</script>
 
 <script>
 async function buy(product) {
